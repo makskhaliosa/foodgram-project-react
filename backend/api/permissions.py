@@ -21,7 +21,7 @@ class IsAuthorAdminOrReadOnly(permissions.BasePermission):
 
 class IsAuthorOrAdmin(permissions.BasePermission):
     """
-    Автор объекта или администратор - только ему доступно 
+    Автор объекта или администратор - только ему доступно
     изменение и удаление рецепта.
     Другим пользователям доступ закрыт.
     """

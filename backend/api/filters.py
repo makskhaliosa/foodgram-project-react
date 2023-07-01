@@ -3,7 +3,7 @@ from enum import Enum
 import django_filters
 from django.shortcuts import get_object_or_404
 
-from contents.models import Ingredient, Recipe, Tag, Subscriptions
+from contents.models import Ingredient, Recipe, Tag
 from users.models import User
 from .core.utils import get_recipes_queryset
 

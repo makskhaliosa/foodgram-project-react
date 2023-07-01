@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 
-from django.contrib.auth import get_user_model
 from dotenv import load_dotenv
 
 load_dotenv()

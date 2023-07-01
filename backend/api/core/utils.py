@@ -110,7 +110,6 @@ def save_shopping_list(author, shopping_list):
 def save_shopping_list_to_pdf(shopping_list):
     filename = str(uuid.uuid4())
     extension = 'pdf'
-    full_name = FILE_DIR / f'shop_list{filename}.{extension}'
     full_text = b''
     canvas = Canvas(f'{filename}.{extension}', pagesize=A4)
     count = 1
