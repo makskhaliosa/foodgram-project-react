@@ -21,3 +21,7 @@ class Migration(migrations.Migration):
             field=models.ManyToManyField(help_text='Укажите, к какому типу относится блюдо', related_name='recipes', through='contents.TagRecipe', to='contents.tag', verbose_name='Тэг'),
         ),
     ]
+
+    replaces = [
+        ('contents', '0009_recipe_ингредиенты_recipe_тэг'),
+    ]

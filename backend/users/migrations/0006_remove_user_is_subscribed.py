@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0005_rename_в_подписках_user_is_subscribed'),
+        ('users', '0005_rename_subscriptions_user_is_subscribed'),
     ]
 
     operations = [

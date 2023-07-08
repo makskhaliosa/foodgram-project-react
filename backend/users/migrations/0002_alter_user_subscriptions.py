@@ -16,3 +16,7 @@ class Migration(migrations.Migration):
             field=models.BooleanField(blank=True, verbose_name='В подписках'),
         ),
     ]
+
+    replaces = [
+        ('users', '0002_alter_user_в_подписках'),
+    ]

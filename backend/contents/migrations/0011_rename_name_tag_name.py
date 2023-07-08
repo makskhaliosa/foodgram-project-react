@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contents', '0010_alter_tagrecipe_options_recipe_дата_публикации'),
+        ('contents', '0010_alter_tagrecipe_options_recipe_pub_date'),
     ]
 
     operations = [
@@ -15,4 +15,8 @@ class Migration(migrations.Migration):
             old_name='Название',
             new_name='name',
         ),
+    ]
+
+    replaces = [
+        ('contents', '0011_rename_название_tag_name'),
     ]

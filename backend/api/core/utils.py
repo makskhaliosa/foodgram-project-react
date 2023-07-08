@@ -1,22 +1,21 @@
+import os
 import uuid
-from pathlib import Path
 
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib.pagesizes import A4
 
 from contents.models import (
     Tag, Ingredient, TagRecipe, IngredientRecipe, Recipe)
 
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-FILE_DIR = BASE_DIR / 'media/files/'
+FILE_DIR = os.path.join(settings.BASE_DIR, 'media/files')
 
 
 def get_tag_and_create_related(tags: dict, instance: Recipe):
     """
     Проверяет наличие объекта из входящего списка в базе.
-    Если объект существует, создаем связь со связанной моделью.
+    Если объект существует, создаем связь с рецептом.
     """
     for tag in tags:
         tag_slug = tag.get('slug')
@@ -27,7 +26,7 @@ def get_tag_and_create_related(tags: dict, instance: Recipe):
 def get_ingredient_and_create_related(ingredients: dict, instance: Recipe):
     """
     Проверяет наличие объекта из входящего списка в базе.
-    Если объект существует, создаем связь со связанной моделью.
+    Если объект существует, создаем связь с рецептом.
     """
     for ingredient in ingredients:
         ingredient_name = ingredient.get('name')
@@ -39,10 +38,10 @@ def get_ingredient_and_create_related(ingredients: dict, instance: Recipe):
 
 def filter_ingredients_and_renew_attrs(queryset, new_set):
     """
-    Сравнивает элементы в существуещем списке объектов в рецепте
+    Сравнивает элементы в существуещем списке ингредиентов в рецепте
     с входящим списком. Если объект существует, обновляем информацию
-    о нем и удаляем элемент из ходящего списка. Если объекта нет во входящем
-    списке, удаляем его из существующего списка объектов.
+    о нем и удаляем элемент из входящего списка. Если ингредиента нет
+    во входящем списке, удаляем его из существующего списка ингредиентов.
     """
     count_ingredients = len(new_set)
     for ingredient_set in queryset:
@@ -66,10 +65,10 @@ def filter_ingredients_and_renew_attrs(queryset, new_set):
 
 def filter_tags_and_renew_attrs(queryset, new_set):
     """
-    Сравнивает элементы в существуещем списке объектов в рецепте
+    Сравнивает элементы в существуещем списке тэгов в рецепте
     с входящим списком. Если объект существует, обновляем информацию
-    о нем и удаляем элемент из ходящего списка. Если объекта нет во входящем
-    списке, удаляем его из существующего списка объектов.
+    о нем и удаляем элемент из входящего списка. Если тэга нет во входящем
+    списке, удаляем его из существующего списка тэгов.
     """
     count_tags = len(new_set)
     for tag_set in queryset:
@@ -94,7 +93,7 @@ def save_shopping_list(author, shopping_list):
     """Сохраняет список покупок в формате .txt."""
     filename = str(uuid.uuid4())
     extension = 'txt'
-    full_name = FILE_DIR / f'shop_list{filename}.{extension}'
+    full_name = os.path.join(FILE_DIR, f'shop_list{filename}.{extension}')
     with open(full_name, 'w', encoding='utf-8') as file_obj:
         header = f'Список покупок для пользователя {author.username}\n\n'
         file_obj.write(header.upper())
@@ -124,11 +123,12 @@ def save_shopping_list_to_pdf(shopping_list):
     return f'{filename}.{extension}'
 
 
-def get_recipes_queryset(queryset):
+def get_recipes_queryset(queryset, exclude=False):
     """
     Получает список id объектов во входящем queryset
     и возвращает новый queryset из модели рецептов.
     """
     recipes_ids = [recipe_set.recipe.id for recipe_set in queryset]
-    new_queryset = Recipe.objects.filter(id__in=recipes_ids)
-    return new_queryset
+    if exclude:
+        return Recipe.objects.exclude(id__in=recipes_ids)
+    return Recipe.objects.filter(id__in=recipes_ids)

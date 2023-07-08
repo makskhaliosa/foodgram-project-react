@@ -7,7 +7,7 @@ import django.utils.timezone
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contents', '0009_recipe_ингредиенты_recipe_тэг'),
+        ('contents', '0009_recipe_ingredients_recipe_tag'),
     ]
 
     operations = [
@@ -21,4 +21,8 @@ class Migration(migrations.Migration):
             field=models.DateTimeField(auto_now_add=True, default=django.utils.timezone.now, verbose_name='Дата публикации'),
             preserve_default=False,
         ),
+    ]
+
+    replaces = [
+        ('contents', '0010_alter_tagrecipe_options_recipe_дата_публикации'),
     ]

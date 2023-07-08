@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contents', '0011_rename_название_tag_name'),
+        ('contents', '0011_rename_name_tag_name'),
     ]
 
     operations = [

@@ -7,41 +7,54 @@ from rest_framework.permissions import (
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Count, Q
 
 from users.models import User
-from contents.models import Tag, Ingredient, Recipe
+from contents.models import Tag, Ingredient, Recipe, Subscriptions
 from .serializers import (
     UserSerializer, SetPasswordSerializer, TagSerializer,
     IngredientSerializer, RecipeSerializer, FavoriteSerializer,
     ShoppingCartSerializer, SubscriptionSerializer)
 from .filters import IngredientFilter, RecipeFilter
 from .core.utils import save_shopping_list
-from .permissions import IsAuthorAdminOrReadOnly, IsAuthorOrAdmin
+from .permissions import (
+    IsAuthorAdminOrReadOnly, IsNewUserAuthorAdminOrReadOnly, IsAuthorOrAdmin)
 from .pagination import LimitPageNumberPagination
 
 
 class UserViewSet(viewsets.ModelViewSet):
     """Вьюсет для пользователей."""
     serializer_class = UserSerializer
-    queryset = User.objects.all()
-    permission_classes = (IsAuthorAdminOrReadOnly,)
+    permission_classes = (IsNewUserAuthorAdminOrReadOnly,)
     search_fields = ('username', 'email')
     pagination_class = LimitPageNumberPagination
 
+    def get_queryset(self):
+        subscribed = Count(
+            'followers', filter=Q(
+                followers__user__username=self.request.user.get_username()))
+        queryset = User.objects.annotate(is_subscribed=subscribed)
+        return queryset
+
     def get_serializer_context(self):
-        return {'user': self.request.user}
+        context = super().get_serializer_context()
+        context['user'] = self.request.user
+        return context
 
     @action(
         methods=['get', 'patch'], detail=False, url_path='me',
         permission_classes=(IsAuthorOrAdmin,))
     def users_me(self, request, *args, **kwargs):
         """Конечная точка для получения информации о текущем пользователе."""
+        user = request.user
+        context = {'user': user}
         if request.method == 'GET':
-            serializer = UserSerializer(request.user)
+            serializer = UserSerializer(user, context=context)
             return Response(data=serializer.data, status=status.HTTP_200_OK)
         serializer = UserSerializer(
-            instance=request.user,
+            instance=user,
             data=request.data,
+            context=context,
             partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -52,7 +65,7 @@ class UserViewSet(viewsets.ModelViewSet):
         permission_classes=(IsAuthorOrAdmin,))
     def set_password(self, request, *args, **kwargs):
         """Конечная точка для смены пароля пользователя."""
-        user = User.objects.get(username=request.user.username)
+        user = User.objects.get(username=request.user.get_username())
         serializer = SetPasswordSerializer(
             instance=user,
             data=request.data,
@@ -65,12 +78,14 @@ class UserViewSet(viewsets.ModelViewSet):
             permission_classes=(IsAuthenticated,))
     def subscribe(self, request, *args, **kwargs):
         """Конечная точка для создания и удаления подписки на автора."""
-        user = get_object_or_404(User, username=request.user.username)
+        user = get_object_or_404(User, username=request.user.get_username())
         author = get_object_or_404(User, id=kwargs['pk'])
+        recipes_limit = self.request.query_params.get('recipes_limit')
         if request.method == 'POST':
             data = {
                 'user': user,
-                'author': author
+                'author': author,
+                'recipes_limit': recipes_limit
             }
             serializer = SubscriptionSerializer(
                 data=data, context=data)
@@ -78,11 +93,12 @@ class UserViewSet(viewsets.ModelViewSet):
             serializer.save(user=user, author=author)
             return Response(
                 data=serializer.data, status=status.HTTP_201_CREATED)
-        if not user.subscriptions.filter(author=author).exists():
+        subscription = user.subscriptions.filter(author=author)
+        if not subscription.exists():
             return Response(data={
                 "error": "Вы не подписаны на автора!"},
                 status=status.HTTP_400_BAD_REQUEST)
-        user.subscriptions.filter(author=author).delete()
+        subscription.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=['get'], detail=False, url_path='subscriptions',
@@ -91,10 +107,18 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Конечная точка для получения авторов, на которых подписан пользователь.
         """
+        user = request.user
         recipes_limit = self.request.query_params.get('recipes_limit')
-        user = get_object_or_404(User, username=request.user.username)
-        subscriptions = user.subscriptions.all()
-        page = self.paginate_queryset(subscriptions)
+        subscribed = Count(
+            'user', filter=Q(user__username=user.get_username()))
+        recipes_count = Count('author__recipes')
+        queryset = Subscriptions.objects.filter(
+            user=user).prefetch_related(
+                'author__recipes').annotate(
+                    is_subscribed=subscribed,
+                    recipes_count=recipes_count
+                    ).order_by('author__username')
+        page = self.paginate_queryset(queryset)
         serializer = SubscriptionSerializer(
             page,
             context={'user': user, 'recipes_limit': recipes_limit},
@@ -113,6 +137,7 @@ class TagViewSet(ListRetrieveViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
     permission_classes = (IsAuthenticatedOrReadOnly,)
+    pagination_class = None
 
 
 class IngredientViewSet(ListRetrieveViewSet):
@@ -120,21 +145,33 @@ class IngredientViewSet(ListRetrieveViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
     permission_classes = (IsAuthenticatedOrReadOnly,)
+    pagination_class = None
     filter_backends = (DjangoFilterBackend,)
     filterset_class = IngredientFilter
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
     """Вьюсет для рецептов."""
-    queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
     permission_classes = (IsAuthorAdminOrReadOnly,)
     pagination_class = LimitPageNumberPagination
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilter
 
+    def get_queryset(self):
+        username = self.request.user.get_username()
+        favorited = Count('favorites', filter=Q(
+            favorites__user__username=username))
+        shopping_cart = Count('shopping_cart', filter=Q(
+            shopping_cart__user__username=username))
+        queryset = Recipe.objects.annotate(
+            is_favorited=favorited, is_in_shopping_cart=shopping_cart)
+        return queryset
+
     def get_serializer_context(self):
-        return {'user': self.request.user}
+        context = super().get_serializer_context()
+        context['user'] = self.request.user
+        return context
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -145,7 +182,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         """Конечная точка для добавления и удаления рецептов из избранного."""
         recipe_id = kwargs.get('pk')
         recipe = get_object_or_404(Recipe, id=recipe_id)
-        user = get_object_or_404(User, username=request.user.username)
+        user = get_object_or_404(User, username=request.user.get_username())
         if request.method == 'POST':
             new_data = {
                 'user': user,
@@ -156,11 +193,12 @@ class RecipeViewSet(viewsets.ModelViewSet):
             serializer.save(user=user, recipe=recipe)
             return Response(
                 data=serializer.data, status=status.HTTP_201_CREATED)
-        if not user.favorites.filter(recipe=recipe).exists():
+        favorite = user.favorites.filter(recipe=recipe)
+        if not favorite.exists():
             return Response(
                 data={"error": "Рецепта нет в избранном!"},
                 status=status.HTTP_400_BAD_REQUEST)
-        user.favorites.filter(recipe=recipe).delete()
+        favorite.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=['post', 'delete'], detail=True, url_path='shopping_cart',
@@ -171,7 +209,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         """
         recipe_id = kwargs.get('pk')
         recipe = get_object_or_404(Recipe, id=recipe_id)
-        user = get_object_or_404(User, username=request.user.username)
+        user = get_object_or_404(User, username=request.user.get_username())
         if request.method == 'POST':
             new_data = {
                 'user': user,
@@ -183,18 +221,19 @@ class RecipeViewSet(viewsets.ModelViewSet):
             serializer.save(user=user, recipe=recipe)
             return Response(
                 data=serializer.data, status=status.HTTP_201_CREATED)
-        if not user.shopping_cart.filter(recipe=recipe).exists():
+        recipe_in_cart = user.shopping_cart.filter(recipe=recipe)
+        if not recipe_in_cart.exists():
             return Response(
                 data={"error": "Рецепта нет в списке покупок!"},
                 status=status.HTTP_400_BAD_REQUEST)
-        user.shopping_cart.filter(recipe=recipe).delete()
+        recipe_in_cart.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=['get'], detail=False, url_path='download_shopping_cart',
             permission_classes=(IsAuthenticated,))
     def download_shopping_cart(self, request, *args, **kwargs):
         """Конечная точка для скачивания списка покупок."""
-        user = get_object_or_404(User, username=request.user.username)
+        user = get_object_or_404(User, username=request.user.get_username())
         shoping_cart = user.shopping_cart.all()
         ingredient_list = {}
         for shopping_item in shoping_cart:
@@ -213,3 +252,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
                     }
         saved_file = save_shopping_list(user, ingredient_list)
         return FileResponse(open(saved_file, 'rb'), as_attachment=True)
+        # В документации джанго пишут, что с FileREsponse закрывать открытый
+        # файл не нужно, так как он закроется автоматически
+        # https://docs.djangoproject.com/en/4.2/ref/request-response/#fileresponse-objects:~:text=The%20file%20will%20be%20closed%20automatically%2C%20so%20don%E2%80%99t%20open%20it%20with%20a%20context%20manager.
+        # Все-таки надо делать с with?

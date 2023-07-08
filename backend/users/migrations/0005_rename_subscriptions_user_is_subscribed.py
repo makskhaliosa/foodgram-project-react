@@ -16,3 +16,7 @@ class Migration(migrations.Migration):
             new_name='is_subscribed',
         ),
     ]
+
+    replaces = [
+        ('users', '0005_rename_в_подписках_user_is_subscribed'),
+    ]

@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0002_alter_user_в_подписках'),
+        ('users', '0002_alter_user_subscriptions'),
     ]
 
     operations = [
@@ -15,4 +15,8 @@ class Migration(migrations.Migration):
             name='В подписках',
             field=models.BooleanField(blank=True, null=True, verbose_name='В подписках'),
         ),
+    ]
+
+    replaces = [
+        ('users', '0003_alter_user_в_подписках'),
     ]

@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0003_alter_user_в_подписках'),
+        ('users', '0003_alter_user_subscriptions'),
     ]
 
     operations = [

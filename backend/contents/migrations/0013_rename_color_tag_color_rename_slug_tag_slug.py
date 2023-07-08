@@ -21,3 +21,7 @@ class Migration(migrations.Migration):
             new_name='slug',
         ),
     ]
+
+    replaces = [
+        ('contents', '0013_rename_цвет_tag_color_rename_слаг_tag_slug'),
+    ]

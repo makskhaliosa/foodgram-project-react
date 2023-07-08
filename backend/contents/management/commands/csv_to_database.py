@@ -1,12 +1,12 @@
+import os
 import csv
-from pathlib import Path
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from contents.models import Ingredient
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
-filename = BASE_DIR / 'data/ingredients.csv'
+filename = os.path.join(settings.BASE_DIR.parent, 'data/ingredients.csv')
 
 
 class Command(BaseCommand):
