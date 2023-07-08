@@ -113,11 +113,12 @@ class UserViewSet(viewsets.ModelViewSet):
             'user', filter=Q(user__username=user.get_username()))
         recipes_count = Count('author__recipes')
         queryset = Subscriptions.objects.filter(
-            user=user).prefetch_related(
-                'author__recipes').annotate(
-                    is_subscribed=subscribed,
-                    recipes_count=recipes_count
-            ).order_by('author__username')
+            user=user
+        ).prefetch_related(
+            'author__recipes'
+        ).annotate(
+            is_subscribed=subscribed, recipes_count=recipes_count
+        ).order_by('author__username')
         page = self.paginate_queryset(queryset)
         serializer = SubscriptionSerializer(
             page,
