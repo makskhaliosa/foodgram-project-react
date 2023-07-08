@@ -117,7 +117,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 'author__recipes').annotate(
                     is_subscribed=subscribed,
                     recipes_count=recipes_count
-                    ).order_by('author__username')
+                ).order_by('author__username')
         page = self.paginate_queryset(queryset)
         serializer = SubscriptionSerializer(
             page,
