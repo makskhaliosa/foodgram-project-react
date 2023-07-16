@@ -26,8 +26,10 @@ class ApiURLsTests(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.guest_client = Client()
-        cls.user_one = User.objects.create_user(username='testuser1')
-        cls.user_two = User.objects.create_user(username='testuser2')
+        cls.user_one = User.objects.create_user(
+            username='testuser1', email='example1@mail.ru')
+        cls.user_two = User.objects.create_user(
+            username='testuser2', email='example2@mail.ru')
         cls.user_one_token = Token.objects.create(user=cls.user_one)
         cls.user_two_token = Token.objects.create(user=cls.user_two)
         cls.authorized_client_one = Client()
