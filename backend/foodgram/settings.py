@@ -124,3 +124,5 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = '/backend_media/media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CSRF_TRUSTED_ORIGINS = os.getenv('TRUSTED_ORIGINS', '').split()
