@@ -9,7 +9,7 @@ from reportlab.lib.pagesizes import A4
 from contents.models import (
     Tag, Ingredient, TagRecipe, IngredientRecipe, Recipe)
 
-FILE_DIR = os.path.join(settings.BASE_DIR, 'media/files')
+FILE_DIR = os.path.join(settings.BASE_DIR.parent, 'backend_media/media/files')
 
 
 def get_tag_and_create_related(tags: dict, instance: Recipe):
@@ -17,9 +17,9 @@ def get_tag_and_create_related(tags: dict, instance: Recipe):
     Проверяет наличие объекта из входящего списка в базе.
     Если объект существует, создаем связь с рецептом.
     """
-    for tag in tags:
-        tag_slug = tag.get('slug')
-        tag_object = get_object_or_404(Tag, slug=tag_slug)
+    for tag_id in tags:
+        # tag_slug = tag.get('slug')
+        tag_object = get_object_or_404(Tag, id=tag_id)
         TagRecipe.objects.get_or_create(tag=tag_object, recipe=instance)
 
 
@@ -29,68 +29,89 @@ def get_ingredient_and_create_related(ingredients: dict, instance: Recipe):
     Если объект существует, создаем связь с рецептом.
     """
     for ingredient in ingredients:
-        ingredient_name = ingredient.get('name')
+        ingredient_id = ingredient.get('id')
         ingredient_object = get_object_or_404(
-            Ingredient, name=ingredient_name)
+            Ingredient, id=ingredient_id)
         IngredientRecipe.objects.get_or_create(
-            ingredient=ingredient_object, recipe=instance)
+            ingredient=ingredient_object,
+            recipe=instance,
+            ingredient_amount=ingredient.get('amount'))
 
 
-def filter_ingredients_and_renew_attrs(queryset, new_set):
+def filter_ingredients_and_create_related(instance, new_set):
     """
     Сравнивает элементы в существуещем списке ингредиентов в рецепте
     с входящим списком. Если объект существует, обновляем информацию
-    о нем и удаляем элемент из входящего списка. Если ингредиента нет
-    во входящем списке, удаляем его из существующего списка ингредиентов.
+    о нем. Если ингредиента нет во входящем списке, удаляем его из
+    существующего списка ингредиентов.
     """
-    count_ingredients = len(new_set)
-    for ingredient_set in queryset:
-        ingredient_found = False
-        if count_ingredients == 0:
-            queryset.filter(
-                ingredient__name=ingredient_set.ingredient.name).delete()
-            count_ingredients = len(new_set)
-        for ingredient in new_set:
-            if ingredient_found:
-                break
-            if ingredient.get('name') == ingredient_set.ingredient.name:
-                ingredient_set.ingredient.amount = ingredient.get('amount')
-                del new_set[len(new_set) - count_ingredients]
-                ingredient_found = True
-                count_ingredients -= 1
-            else:
-                count_ingredients -= 1
-    return new_set
+    queryset = instance.ingredient_recipe_set
+    ids_to_keep = []
+    for ingredient in new_set:
+        ingredient_id = ingredient.get('id')
+        ingredient_amount = ingredient.get('amount')
+        queryset_object = queryset.filter(ingredient__id=ingredient_id)
+        if not queryset_object.exists():
+            ingredient_object = get_object_or_404(Ingredient, id=ingredient_id)
+            queryset.create(
+                ingredient=ingredient_object,
+                ingredient_amount=ingredient_amount
+            )
+            ids_to_keep.append(ingredient_id)
+        else:
+            instance_set = queryset_object.get()
+            instance_set.ingredient_amount = ingredient_amount
+            instance_set.save()
+            ids_to_keep.append(ingredient_id)
+    queryset.exclude(
+        ingredient__id__in=ids_to_keep
+    ).delete()
 
 
-def filter_tags_and_renew_attrs(queryset, new_set):
+def filter_tags_and_create_related(instance, new_set):
     """
     Сравнивает элементы в существуещем списке тэгов в рецепте
-    с входящим списком. Если объект существует, обновляем информацию
-    о нем и удаляем элемент из входящего списка. Если тэга нет во входящем
-    списке, удаляем его из существующего списка тэгов.
+    с входящим списком. Если объект существует, обновляет информацию
+    о нем. Если тэга нет во входящем списке, удаляет его из
+    существующего списка тэгов.
+    """
+    queryset = instance.tag_recipe_set
+    ids_to_keep = []
+    for tag_id in new_set:
+        queryset_object = queryset.filter(tag__id=tag_id)
+        if not queryset_object.exists():
+            tag_object = get_object_or_404(Tag, id=tag_id)
+            queryset.create(tag=tag_object)
+            ids_to_keep.append(tag_id)
+        else:
+            ids_to_keep.append(tag_id)
+    queryset.exclude(
+        tag__id__in=ids_to_keep
+    ).delete()
     """
     count_tags = len(new_set)
     for tag_set in queryset:
         tag_found = False
         if count_tags == 0:
             queryset.filter(
-                tag__name=tag_set.tag.name).delete()
+                tag__id=tag_set.tag.id).delete()
             count_tags = len(new_set)
-        for tag in new_set:
+        for tag_id in new_set:
             if tag_found:
                 break
-            if tag.get('name') == tag_set.tag.name:
+            if tag_id == tag_set.tag.id:
                 del new_set[len(new_set) - count_tags]
                 tag_found = True
                 count_tags -= 1
             else:
                 count_tags -= 1
-    return new_set
+    return new_set"""
 
 
 def save_shopping_list(author, shopping_list):
     """Сохраняет список покупок в формате .txt."""
+    if not os.path.exists(FILE_DIR):
+        os.makedirs(FILE_DIR)
     filename = str(uuid.uuid4())
     extension = 'txt'
     full_name = os.path.join(FILE_DIR, f'shop_list{filename}.{extension}')

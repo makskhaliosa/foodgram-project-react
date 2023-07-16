@@ -14,7 +14,7 @@ from contents.models import (
     Subscriptions, ShoppingCart)
 from .core.utils import (
     get_tag_and_create_related, get_ingredient_and_create_related,
-    filter_ingredients_and_renew_attrs, filter_tags_and_renew_attrs)
+    filter_ingredients_and_create_related, filter_tags_and_create_related)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -45,6 +45,12 @@ class UserSerializer(serializers.ModelSerializer):
     def validate_password(self, value):
         """Хэширует пароль пользователя."""
         password_validation.validate_password(value, User)
+        prog = re.compile(r'^[\w.@+!?-]+\Z', re.ASCII)
+        result = prog.match(value)
+        if not result:
+            raise serializers.ValidationError(
+                'Придумайте другой пароль! Можно использовать '
+                'только латинские буквы, цифры и символы "@/./+/-/_/!/?" .')
         return make_password(value)
 
     def get_is_subscribed(self, obj):
@@ -74,6 +80,12 @@ class SetPasswordSerializer(serializers.Serializer):
     def validate_new_password(self, value):
         user = self.context['user']
         password_validation.validate_password(value, user)
+        prog = re.compile(r'^[\w.@+!?-]+\Z', re.ASCII)
+        result = prog.match(value)
+        if not result:
+            raise serializers.ValidationError(
+                'Придумайте другой пароль! Можно использовать '
+                'только латинские буквы, цифры и символы "@/./+/-/_/!/?" .')
         return value
 
     def save(self, **kwargs):
@@ -89,6 +101,12 @@ class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ('id', 'name', 'color', 'slug')
+        read_only_fields = ('name', 'color', 'slug')
+
+    def to_internal_value(self, data):
+        if not isinstance(data, int):
+            raise serializers.ValidationError('Введи id тэга.')
+        return data
 
 
 class IngredientSerializer(serializers.ModelSerializer):
@@ -144,10 +162,10 @@ class RecipeSerializer(serializers.ModelSerializer):
             'cooking_time', 'is_favorited', 'is_in_shopping_cart')
 
     def validate(self, data):
-        if 'ingredients' not in self.initial_data:
+        if not self.initial_data.get('ingredients'):
             raise serializers.ValidationError(
                 {'Ingredients': 'Рецепт не может быть без ингредиентов.'})
-        if 'tags' not in self.initial_data:
+        if not self.initial_data.get('tags'):
             raise serializers.ValidationError(
                 {'Tags': 'Добавь тэги для рецепта.'})
         return data
@@ -191,13 +209,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         validated_data.pop('ingredient_recipe_set')
         tags = validated_data.pop('tags')
         super().update(instance, validated_data)
-        instance_ingredients = instance.ingredient_recipe_set.all()
-        ingredients = filter_ingredients_and_renew_attrs(
-            instance_ingredients, ingredients)
-        get_ingredient_and_create_related(ingredients, instance)
-        instance_tags = instance.tag_recipe_set.all()
-        tags = filter_tags_and_renew_attrs(instance_tags, tags)
-        get_tag_and_create_related(tags, instance)
+        filter_ingredients_and_create_related(instance, ingredients)
+        filter_tags_and_create_related(instance, tags)
         return instance
 
 

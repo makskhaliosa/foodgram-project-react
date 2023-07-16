@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from django.shortcuts import get_object_or_404
 from django.http import FileResponse
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
@@ -15,7 +15,7 @@ from .serializers import (
     UserSerializer, SetPasswordSerializer, TagSerializer,
     IngredientSerializer, RecipeSerializer, FavoriteSerializer,
     ShoppingCartSerializer, SubscriptionSerializer)
-from .filters import IngredientFilter, RecipeFilter
+from .filters import RecipeFilter
 from .core.utils import save_shopping_list
 from .permissions import (
     IsAuthorAdminOrReadOnly, IsNewUserAuthorAdminOrReadOnly, IsAuthorOrAdmin)
@@ -33,7 +33,9 @@ class UserViewSet(viewsets.ModelViewSet):
         subscribed = Count(
             'followers', filter=Q(
                 followers__user__username=self.request.user.get_username()))
-        queryset = User.objects.annotate(is_subscribed=subscribed)
+        queryset = User.objects.annotate(
+            is_subscribed=subscribed
+        ).order_by('username')
         return queryset
 
     def get_serializer_context(self):
@@ -147,8 +149,8 @@ class IngredientViewSet(ListRetrieveViewSet):
     serializer_class = IngredientSerializer
     permission_classes = (IsAuthenticatedOrReadOnly,)
     pagination_class = None
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = IngredientFilter
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['^name', 'name']
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
@@ -166,7 +168,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
         shopping_cart = Count('shopping_cart', filter=Q(
             shopping_cart__user__username=username))
         queryset = Recipe.objects.annotate(
-            is_favorited=favorited, is_in_shopping_cart=shopping_cart)
+            is_favorited=favorited, is_in_shopping_cart=shopping_cart
+        ).order_by('-pub_date')
         return queryset
 
     def get_serializer_context(self):
@@ -253,7 +256,3 @@ class RecipeViewSet(viewsets.ModelViewSet):
                     }
         saved_file = save_shopping_list(user, ingredient_list)
         return FileResponse(open(saved_file, 'rb'), as_attachment=True)
-        # В документации джанго пишут, что с FileREsponse закрывать открытый
-        # файл не нужно, так как он закроется автоматически
-        # https://docs.djangoproject.com/en/4.2/ref/request-response/#fileresponse-objects:~:text=The%20file%20will%20be%20closed%20automatically%2C%20so%20don%E2%80%99t%20open%20it%20with%20a%20context%20manager.
-        # Все-таки надо делать с with?
